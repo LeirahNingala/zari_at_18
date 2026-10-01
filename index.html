@@ -252,7 +252,7 @@ const CFG={
   whenText:"Saturday, October 17, 2026 · 4:00 PM",
   where:"Chef Laudico at Forest Hills, Barangay Inarawan, Marcos Highway, Antipolo City",
   dress:"",
-  sheetUrl:"https://script.google.com/macros/s/AKfycbyu7LjUk0Jtxqn9s1pngH894eRzytcAzmY2CVz8ipiWVZJrUunjL3I-6D7LmlNc2KJ2RQ/exec",                                // paste your Google Apps Script Web App URL (ends with /exec) to send RSVPs & gift picks to the Google Sheet
+  sheetUrl:"https://script.google.com/macros/s/AKfycbyRI62iOJz-3WXEFr4lD3z_OUwxxZbhP5hp77op-nAuczEao3268XTVZtfb1pgn14TG5w/exec",                                // paste your Google Apps Script Web App URL (ends with /exec) to send RSVPs & gift picks to the Google Sheet
   contact:"",                                 // optional: Zari's phone (+63…) or email, for the "send by message" fallback
   driveUrl:"",                                // paste your shared Google Drive folder link
   chapters:["Maria Clarisse Co","Alyzza Merzo","Voltaire Ang","Jessielyn Tesado","Eunice Andoque","Alexa Shane Deloso","Ayahna Ecleo","Shekainah Oiria","Nathalia De Leon","Althea Juliana Dulliyao","Jamilah Kianna Francisco","Gayle Mariano","Pheobe Ponce","Alyanna Arcilla","Tracy Veridiano","Ima Delos Santos","Sky Valdez"],
@@ -342,8 +342,9 @@ $("#xl").onclick=async()=>{const R=rows();if(!R.length){$("#xlMsg").textContent=
     await d.save({filename:name,data});$("#xlMsg").textContent="Saved."}catch(e){$("#xlMsg").textContent="Download was cancelled or failed."}};
 
 /* Google Sheet sync (needs CFG.sheetUrl) */
-function sheetPost(o){if(!CFG.sheetUrl)return Promise.resolve();
-  return fetch(CFG.sheetUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(o)})}
+async function sheetPost(o){if(!CFG.sheetUrl)return;
+  const r=await fetch(CFG.sheetUrl+"?data="+encodeURIComponent(JSON.stringify(o)));
+  const j=await r.json();if(!j||!j.ok)throw new Error(j&&j.error||"sheet error")}
 async function sheetLoadGifts(){if(!CFG.sheetUrl)return;
   try{const r=await fetch(CFG.sheetUrl+"?action=gifts");const j=await r.json();taken=j||{};drawGifts()}catch(e){}}
 /* RSVP */
@@ -356,7 +357,7 @@ $("#sendRsvp").onclick=async()=>{
   LS.set("zari_rsvp",r);
   try{if(CFG.sheetUrl){await sheetPost({type:"rsvp",id:myId,...r});rsvps[myId]=r;drawGuests()}else if(db)await db.collection("rsvps").doc(myId).set(r);else{rsvps[myId]=r;drawGuests()}
     $("#rsvpMsg").textContent=v==="yes"?`Yay, ${name}! See you there 🎉`:`Thanks for letting us know, ${name}.`}
-  catch(e){$("#rsvpMsg").textContent="We couldn't reach the guest list from here.";showFb(r)}
+  catch(e){$("#rsvpMsg").textContent="Sorry, your RSVP didn't save. Please try again.";showFb(r)}
 };
 
 /* Gifts */
@@ -368,9 +369,9 @@ $("#gifts").onclick=async e=>{
     if(g){const cur=db?(await db.doc("gifts/"+id).get()):null;
       if(cur&&cur.exists){$("#giftMsg").textContent="Someone just reserved that one — pick another!";return}
       const val={by:myId,name};
-      if(db&&!CFG.sheetUrl)await db.doc("gifts/"+id).set(val);else{taken[id]=val;sheetPost({type:"gift",action:"reserve",id,gift:CFG.gifts.find(x=>x.id===id).name,by:myId,who:name})}
+      if(db&&!CFG.sheetUrl)await db.doc("gifts/"+id).set(val);else{taken[id]=val;sheetPost({type:"gift",action:"reserve",id,gift:CFG.gifts.find(x=>x.id===id).name,by:myId,who:name}).catch(()=>{$("#giftMsg").textContent="Couldn't save that reservation. Please try again."})}
       $("#giftMsg").textContent="Reserved. Thank you! 🎁"}
-    else{if(db&&!CFG.sheetUrl)await db.doc("gifts/"+id).delete();else{delete taken[id];sheetPost({type:"gift",action:"release",id,by:myId})}$("#giftMsg").textContent="Released."}
+    else{if(db&&!CFG.sheetUrl)await db.doc("gifts/"+id).delete();else{delete taken[id];sheetPost({type:"gift",action:"release",id,by:myId}).catch(()=>{})}$("#giftMsg").textContent="Released."}
     if(!db){LS.set("zari_tk",taken);drawGifts()}
   }catch(err){$("#giftMsg").textContent="Couldn't save that — try again."}
 };
